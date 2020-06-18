@@ -1,0 +1,38 @@
+{
+  "name": "react-native-sound",
+  "version": "0.1.0",
+  "description": "React Native module for playing sound clips on iOS and Android",
+  "main": "sound.js",
+  "typings": "index.d.ts",
+  "repository": "aleskafka/react-native-sound",
+  "keywords": [
+    "react-native",
+    "sound",
+    "audio",
+    "ios",
+    "android",
+  ],
+  "author": "Ales Kafka",
+  "license": "MIT",
+  "peerDependencies": {
+    "react-native": ">=0.8.0"
+  },
+  "scripts": {
+    "clang-format": "node scripts/clang-format.js",
+    "clang-format:check": "node scripts/clang-format.js --check"
+  },
+  "devDependencies": {
+    "glob": "^7.1.4",
+    "promisify-child-process": "^3.1.1"
+  },
+  "files": [
+    "**/*.@(js|ts)",
+    "*.podspec",
+    "android/build.gradle",
+    "android/src/**/*.@(java|xml)",
+    "RNSound.xcodeproj/project.pbxproj",
+    "RNSound.xcodeproj/project.xcworkspace/contents.xcworkspacedata",
+    "RNSound/**/*.@(h|m)",
+    "!scripts"
+  ]
+}
