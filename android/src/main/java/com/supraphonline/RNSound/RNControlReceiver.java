@@ -27,48 +27,37 @@ public class RNControlReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.i("RNControlReceiver", intent.getAction());
+        if (module.session == null) {
+            return;
+        }
 
-        // if (module.session == null) return;
-        // if(module.session == null || module.notification == null) return;
-        // String action = intent.getAction();
+        String action = intent.getAction();
 
-        // if(MusicControlNotification.REMOVE_NOTIFICATION.equals(action)) {
+        if (AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(action)) {
+            module.session.getController().getTransportControls().pause();
+            return;
+        }
 
-        //     if(!checkApp(intent)) return;
+        if (checkApp(intent) == false) {
+            return;
+        }
 
-        //     // Removes the notification and deactivates the media session
-        //     module.notification.hide();
-        //     module.session.setActive(false);
-
-        //     // Notify react native
-        //     WritableMap data = Arguments.createMap();
-        //     data.putString("name", "closeNotification");
-        //     context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("RNMusicControlEvent", data);
-
-        // } else if(MusicControlNotification.MEDIA_BUTTON.equals(action) || Intent.ACTION_MEDIA_BUTTON.equals(action)) {
-
-        //     if(!intent.hasExtra(Intent.EXTRA_KEY_EVENT)) return;
-        //     if(!checkApp(intent)) return;
-
-        //     // Dispatch media buttons to MusicControlListener
-        //     // Copy of MediaButtonReceiver.handleIntent without action check
-        //     KeyEvent ke = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
-        //     module.session.getController().dispatchMediaButtonEvent(ke);
-
-        // } else if(AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(action)) {
-
-        //     module.session.getController().getTransportControls().pause();
-
-        // }
+        if (RNMusicNotification.REMOVE_NOTIFICATION.equals(action)) {
+        } else if (RNMusicNotification.MEDIA_BUTTON.equals(action) || Intent.ACTION_MEDIA_BUTTON.equals(action)) {
+            if (intent.hasExtra(Intent.EXTRA_KEY_EVENT)) {
+                KeyEvent ke = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                module.session.getController().dispatchMediaButtonEvent(ke);
+            }
+        }
     }
 
     private boolean checkApp(Intent intent) {
-        // if(intent.hasExtra(MusicControlNotification.PACKAGE_NAME)) {
-        //     String name = intent.getStringExtra(MusicControlNotification.PACKAGE_NAME);
-        //     if(!packageName.equals(name)) return false; // This event is not for this package. We'll ignore it
-        // }
-        return true;
+        if (intent.hasExtra(RNMusicNotification.PACKAGE_NAME)) {
+            String name = intent.getStringExtra(RNMusicNotification.PACKAGE_NAME);
+            return packageName.equals(name);
+        }
+
+        return false;
     }
 
 }

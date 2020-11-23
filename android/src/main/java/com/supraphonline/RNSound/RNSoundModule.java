@@ -73,7 +73,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule implements AudioMa
 	@ReactMethod
 	synchronized public void setTrackMetadata(final ReadableMap metadata) {
 		if (this.notification == null) {
-			this.notification = new RNMusicNotification(getReactApplicationContext());
+			this.notification = new RNMusicNotification(getReactApplicationContext(), this);
 		}
 
 		pendingMetadata = metadata;
@@ -118,11 +118,19 @@ public class RNSoundModule extends ReactContextBaseJavaModule implements AudioMa
 
 	@ReactMethod
 	public void play(final int index) {
-		if (this.active != null && this.active != this.sounds.get(index)) {
+		SoundInstance instance = this.sounds.get(index);
+
+		if (this.active != null && this.active != instance) {
 			this.active.delegate.setNotification();
 		}
 
-		this.active = this.sounds.get(index);
+		instancePlay(instance);
+	}
+
+
+	public void instancePlay(SoundInstance instance)
+	{
+		this.active = instance;
 
 		if (this.active != null) {
 			this.active.sound.play();
@@ -149,7 +157,12 @@ public class RNSoundModule extends ReactContextBaseJavaModule implements AudioMa
 	@ReactMethod
 	public void pause(final int index) {
 		SoundInstance instance = this.sounds.get(index);
+		instancePause(instance);
+	}
 
+
+	public void instancePause(SoundInstance instance)
+	{
 		if (instance != null) {
 		    if (instance.player.isPlaying()) {
                 instance.sound.pause();

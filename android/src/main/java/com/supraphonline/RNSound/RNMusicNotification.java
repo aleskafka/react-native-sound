@@ -5,6 +5,8 @@ import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.media.AudioManager;
@@ -25,7 +27,10 @@ import android.support.v4.media.session.PlaybackStateCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 
 import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter;
 
 import java.util.Map;
 
@@ -46,6 +51,7 @@ public class RNMusicNotification {
 	protected final PlaybackStateCompat.Builder playStateBuilder;
 	protected final MediaMetadataCompat.Builder metadataBuilder;
 	protected final NotificationCompat.Builder notificationBuilder;
+	protected Notification currentNotification;
 
 	private final NotificationCompat.Action actionPlay;
 	private final NotificationCompat.Action actionPause;
@@ -54,11 +60,12 @@ public class RNMusicNotification {
 	private final NotificationCompat.Action actionPrev;
 	private final NotificationCompat.Action actionSkipForward;
 	private final NotificationCompat.Action actionSkipBackward;
+	private boolean active = false;
 	private boolean allowPrev = false;
 	private boolean allowNext = false;
 	private int playState = 0;
 
-	public RNMusicNotification(ReactApplicationContext context) {
+	public RNMusicNotification(final ReactApplicationContext context, final RNSoundModule module) {
 		this.context = context;
 
 		IntentFilter filter = new IntentFilter();
@@ -73,7 +80,16 @@ public class RNMusicNotification {
 		playStateBuilder = new PlaybackStateCompat.Builder();
 		metadataBuilder = new MediaMetadataCompat.Builder();
 
-		notificationBuilder = new NotificationCompat.Builder(context, "RNSound");
+		String channelId = "RNSound";
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+		    NotificationChannel channel = new NotificationChannel(channelId, "MusicService", NotificationManager.IMPORTANCE_HIGH);
+		    channel.setShowBadge(false);
+		    channel.setSound(null, null);
+		    ((NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(channel);
+		}
+
+		notificationBuilder = new NotificationCompat.Builder(context, channelId);
 		notificationBuilder.setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
 		notificationBuilder.setPriority(NotificationCompat.PRIORITY_HIGH);
 
@@ -83,10 +99,6 @@ public class RNMusicNotification {
 		MediaStyle style = new MediaStyle();
 		style.setMediaSession(session.getSessionToken());
 		style.setShowActionsInCompactView(new int[0]);
-		// nb.setContentTitle(getMetadataKey(metadata, "title"));
-		// nb.setContentText(getMetadataKey(metadata, "artist"));
-		// nb.setContentInfo(getMetadataKey(metadata, "album"));
-		// nb.setColor(NotificationCompat.COLOR_DEFAULT);
 
 		notificationBuilder.setStyle(style);
 		notificationBuilder.setSmallIcon(R.drawable.play);
@@ -105,30 +117,55 @@ public class RNMusicNotification {
 			@Override
 			public boolean onMediaButtonEvent(Intent mediaButtonEvent) {
 				Log.i("onMediaButtonEvent", mediaButtonEvent.getAction());
-				// final String intentAction = mediaButtonEvent.getAction();
-				// if (Intent.ACTION_MEDIA_BUTTON.equals(intentAction)) {
-				//     final KeyEvent event = mediaButtonEvent.getParcelableExtra(
-				//             Intent.EXTRA_KEY_EVENT);
-				//     if (event == null) {
-				//         return super.onMediaButtonEvent(mediaButtonEvent);
-				//     }
-				//     final int keycode = event.getKeyCode();
-				//     final int action = event.getAction();
-				//     if (event.getRepeatCount() == 0 && action == KeyEvent.ACTION_DOWN) {
-				//         switch (keycode) {
-				//             // Do what you want in here
-				//             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-				//                 Log.d("MPS", "KEYCODE_MEDIA_PLAY_PAUSE");
-				//                 break;
-				//             case KeyEvent.KEYCODE_MEDIA_PAUSE:
-				//                 Log.d("MPS", "KEYCODE_MEDIA_PAUSE");
-				//                 break;
-				//             case KeyEvent.KEYCODE_MEDIA_PLAY:
-				//                 Log.d("MPS", "KEYCODE_MEDIA_PLAY");
-				//                 break;
-				//         }
-				//     }
-				// }
+			    RCTDeviceEventEmitter emitter = context.getJSModule(RCTDeviceEventEmitter.class);
+			    final KeyEvent event = mediaButtonEvent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+
+			    if (event != null) {
+				    final int keycode = event.getKeyCode();
+				    final int action = event.getAction();
+
+				    if (event.getRepeatCount() == 0 && action == KeyEvent.ACTION_DOWN) {
+		                Log.d("testing", "test");
+				        switch (keycode) {
+				            // Do what you want in here
+				            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+					            if (module.active!=null) {
+					            	if (module.active.player.isPlaying()) {
+					            		module.instancePause(module.active);
+
+					            	} else {
+		                        		module.instancePlay(module.active);
+					            	}
+					            }
+				                break;
+				            case KeyEvent.KEYCODE_MEDIA_STOP:
+                        		clean();
+				            case KeyEvent.KEYCODE_MEDIA_PAUSE:
+			            		module.instancePause(module.active);
+				                break;
+				            case KeyEvent.KEYCODE_MEDIA_PLAY:
+                        		module.instancePlay(module.active);
+				                break;
+
+				            case KeyEvent.KEYCODE_MEDIA_NEXT:
+					            clean();
+
+	                        	if (emitter!=null) {
+	            	            	emitter.emit("next", Arguments.createMap());
+	                        	}
+
+					            break;
+				            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+		                        clean();
+
+				            	if (emitter!=null) {
+					            	emitter.emit("prev", Arguments.createMap());
+				            	}
+					            break;
+				        }
+				    }
+			    }
+
 				return super.onMediaButtonEvent(mediaButtonEvent);
 			}
 		});
@@ -155,6 +192,7 @@ public class RNMusicNotification {
 
 
 	public void clean() {
+		this.active = false;
 		NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID);
 
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -193,7 +231,10 @@ public class RNMusicNotification {
 		playStateBuilder.setState(playState, position, 1.0f, SystemClock.elapsedRealtime());
 		playStateBuilder.setBufferedPosition(duration);
 
-		updateNotificationSession();
+		if (this.active || playState==PlaybackStateCompat.STATE_PLAYING || playState==PlaybackStateCompat.STATE_BUFFERING) {
+			this.active = true;
+			updateNotificationSession();
+		}
 	}
 
 
@@ -202,8 +243,8 @@ public class RNMusicNotification {
         boolean isPlaying = playState==PlaybackStateCompat.STATE_PLAYING || playState==PlaybackStateCompat.STATE_BUFFERING;
 
         playStateBuilder.setActions(0
-            | PlaybackStateCompat.ACTION_REWIND
-            | PlaybackStateCompat.ACTION_FAST_FORWARD
+            // | PlaybackStateCompat.ACTION_REWIND
+            // | PlaybackStateCompat.ACTION_FAST_FORWARD
             | PlaybackStateCompat.ACTION_STOP
             | (allowPrev ? PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS : 0)
             | (allowNext ? PlaybackStateCompat.ACTION_SKIP_TO_NEXT : 0)
@@ -227,13 +268,23 @@ public class RNMusicNotification {
 
         String packageName = context.getPackageName();
         Intent openApp = context.getPackageManager().getLaunchIntentForPackage(packageName);
+
+        if (openApp == null) {
+            openApp = new Intent();
+            openApp.setPackage(packageName);
+            openApp.addCategory(Intent.CATEGORY_LAUNCHER);
+        }
+
+        openApp.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
         notificationBuilder.setContentIntent(PendingIntent.getActivity(context, 0, openApp, 0));
 
         Intent remove = new Intent(REMOVE_NOTIFICATION);
         remove.putExtra(PACKAGE_NAME, context.getApplicationInfo().packageName);
         notificationBuilder.setDeleteIntent(PendingIntent.getBroadcast(context, 0, remove, PendingIntent.FLAG_UPDATE_CURRENT));
 
-		NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notificationBuilder.build());
+        currentNotification = notificationBuilder.build();
+		NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, currentNotification);
 	}
 
 
