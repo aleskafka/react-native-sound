@@ -103,72 +103,7 @@ public class RNMusicNotification {
 		notificationBuilder.setStyle(style);
 		notificationBuilder.setSmallIcon(R.drawable.play);
 
-		session.setCallback(new MediaSessionCompat.Callback() {
-			@Override
-			public void onPlay() {
-				Log.i("play", "test");
-			}
-
-			@Override
-			public void onPause() {
-				Log.i("pause", "test");
-			}
-
-			@Override
-			public boolean onMediaButtonEvent(Intent mediaButtonEvent) {
-				Log.i("onMediaButtonEvent", mediaButtonEvent.getAction());
-			    RCTDeviceEventEmitter emitter = context.getJSModule(RCTDeviceEventEmitter.class);
-			    final KeyEvent event = mediaButtonEvent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
-
-			    if (event != null) {
-				    final int keycode = event.getKeyCode();
-				    final int action = event.getAction();
-
-				    if (event.getRepeatCount() == 0 && action == KeyEvent.ACTION_DOWN) {
-		                Log.d("testing", "test");
-				        switch (keycode) {
-				            // Do what you want in here
-				            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-					            if (module.active!=null) {
-					            	if (module.active.player.isPlaying()) {
-					            		module.instancePause(module.active);
-
-					            	} else {
-		                        		module.instancePlay(module.active);
-					            	}
-					            }
-				                break;
-				            case KeyEvent.KEYCODE_MEDIA_STOP:
-                        		clean();
-				            case KeyEvent.KEYCODE_MEDIA_PAUSE:
-			            		module.instancePause(module.active);
-				                break;
-				            case KeyEvent.KEYCODE_MEDIA_PLAY:
-                        		module.instancePlay(module.active);
-				                break;
-
-				            case KeyEvent.KEYCODE_MEDIA_NEXT:
-					            clean();
-
-	                        	if (emitter!=null) {
-	            	            	emitter.emit("next", Arguments.createMap());
-	                        	}
-
-					            break;
-				            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
-		                        clean();
-
-				            	if (emitter!=null) {
-					            	emitter.emit("prev", Arguments.createMap());
-				            	}
-					            break;
-				        }
-				    }
-			    }
-
-				return super.onMediaButtonEvent(mediaButtonEvent);
-			}
-		});
+		session.setCallback(new RNSessionEvents(this, context, module));
 
 		actionPlay = createAction("play", "Play", PlaybackStateCompat.ACTION_PLAY);
 		actionPause = createAction("pause", "Pause", PlaybackStateCompat.ACTION_PAUSE);
@@ -194,11 +129,6 @@ public class RNMusicNotification {
 	public void clean() {
 		this.active = false;
 		NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID);
-
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-			Intent myIntent = new Intent(context, RNMusicNotification.NotificationService.class);
-			context.stopService(myIntent);
-		}
 	}
 
 
@@ -220,7 +150,10 @@ public class RNMusicNotification {
 	public void setPrevNextControls(boolean prev, boolean next) {
 		this.allowPrev = prev;
 		this.allowNext = next;
-		updateNotificationSession();
+
+		if (this.active) {
+			updateNotificationSession();
+		}
 	}
 
 
@@ -301,55 +234,4 @@ public class RNMusicNotification {
 		return new NotificationCompat.Action(icon, title, i);
 	}
 
-	public static class NotificationService extends Service {
-
-		@Override
-		public IBinder onBind(Intent intent) {
-			return null;
-		}
-
-		private Notification notification;
-
-		@Override
-		public void onCreate() {
-			super.onCreate();
-			// notification = RNSoundModule.INSTANCE.notification.prepareNotification(RNSoundModule.INSTANCE.nb, false);
-			startForeground(NOTIFICATION_ID, notification);
-		}
-
-		@Override
-		public int onStartCommand(Intent intent, int flags, int startId) {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-				// notification = RNSoundModule.INSTANCE.notification.prepareNotification(RNSoundModule.INSTANCE.nb, false);
-				startForeground(NOTIFICATION_ID, notification);
-			}
-			return START_NOT_STICKY;
-		}
-
-		@Override
-		public void onTaskRemoved(Intent rootIntent) {
-			// Destroy the notification and sessions when the task is removed (closed, killed, etc)
-			// if (RNSoundModule.INSTANCE != null) {
-				// RNSoundModule.INSTANCE.destroy();
-			// }
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-				stopForeground(true);
-			}
-			stopSelf(); // Stop the service as we won't need it anymore
-		}
-
-		@Override
-		public void onDestroy() {
-
-			// if (RNSoundModule.INSTANCE != null) {
-				// RNSoundModule.INSTANCE.destroy();
-			// }
-
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-				stopForeground(true);
-			}
-
-			stopSelf();
-		}
-	}
 }
